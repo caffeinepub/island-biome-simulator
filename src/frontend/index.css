@@ -1,0 +1,222 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/assets/fonts/JetBrainsMono-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Outfit";
+  src: url("/assets/fonts/Outfit-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@layer base {
+  :root {
+    --radius: 0.375rem;
+
+    /* Island Biome - Deep Nature Dark Theme */
+    --background: 0.12 0.015 220;
+    --foreground: 0.92 0.02 80;
+    --card: 0.16 0.018 215;
+    --card-foreground: 0.92 0.02 80;
+    --popover: 0.14 0.016 215;
+    --popover-foreground: 0.92 0.02 80;
+    --primary: 0.72 0.18 145;
+    --primary-foreground: 0.12 0.015 220;
+    --secondary: 0.2 0.02 215;
+    --secondary-foreground: 0.85 0.02 80;
+    --muted: 0.18 0.018 215;
+    --muted-foreground: 0.58 0.02 215;
+    --accent: 0.55 0.15 145;
+    --accent-foreground: 0.95 0.01 80;
+    --destructive: 0.6 0.22 25;
+    --destructive-foreground: 0.95 0.01 80;
+    --border: 0.25 0.025 215;
+    --input: 0.22 0.022 215;
+    --ring: 0.55 0.15 145;
+
+    /* Chart tokens */
+    --chart-1: 0.72 0.18 145;
+    --chart-2: 0.65 0.16 175;
+    --chart-3: 0.58 0.14 210;
+    --chart-4: 0.75 0.2 95;
+    --chart-5: 0.6 0.22 25;
+
+    /* Sidebar */
+    --sidebar: 0.14 0.016 215;
+    --sidebar-foreground: 0.92 0.02 80;
+    --sidebar-primary: 0.72 0.18 145;
+    --sidebar-primary-foreground: 0.12 0.015 220;
+    --sidebar-accent: 0.2 0.02 215;
+    --sidebar-accent-foreground: 0.85 0.02 80;
+    --sidebar-border: 0.25 0.025 215;
+    --sidebar-ring: 0.55 0.15 145;
+
+    /* Biome-specific tokens */
+    --hud-bg: rgba(8, 15, 28, 0.88);
+    --hud-border: rgba(72, 180, 120, 0.25);
+    --hud-text: #c8e8d0;
+    --hud-accent: #48b478;
+    --speed-active: rgba(72, 180, 120, 0.3);
+    --speed-active-border: #48b478;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: "Outfit", sans-serif;
+    overflow: hidden;
+  }
+}
+
+/* Pixel art rendering */
+canvas {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  display: block;
+}
+
+/* HUD styles */
+.hud-panel {
+  background: var(--hud-bg);
+  border: 1px solid var(--hud-border);
+  border-radius: 6px;
+  color: var(--hud-text);
+  font-family: "JetBrains Mono", monospace;
+  backdrop-filter: blur(4px);
+}
+
+.hud-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(200, 232, 208, 0.5);
+}
+
+.hud-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--hud-accent);
+}
+
+.speed-btn {
+  background: rgba(8, 15, 28, 0.7);
+  border: 1px solid rgba(72, 180, 120, 0.2);
+  color: rgba(200, 232, 208, 0.7);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  padding: 4px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  letter-spacing: 0.05em;
+}
+
+.speed-btn:hover {
+  border-color: rgba(72, 180, 120, 0.5);
+  color: var(--hud-text);
+  background: rgba(72, 180, 120, 0.1);
+}
+
+.speed-btn.active {
+  background: var(--speed-active);
+  border-color: var(--speed-active-border);
+  color: var(--hud-accent);
+}
+
+.action-btn {
+  background: rgba(8, 15, 28, 0.8);
+  border: 1px solid rgba(72, 180, 120, 0.35);
+  color: var(--hud-accent);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  padding: 4px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  letter-spacing: 0.05em;
+}
+
+.action-btn:hover {
+  background: rgba(72, 180, 120, 0.2);
+  border-color: rgba(72, 180, 120, 0.6);
+}
+
+.past-runs-panel {
+  position: absolute;
+  bottom: 56px;
+  right: 12px;
+  width: 340px;
+  max-height: 420px;
+  overflow-y: auto;
+  background: rgba(8, 15, 28, 0.95);
+  border: 1px solid rgba(72, 180, 120, 0.3);
+  border-radius: 8px;
+  z-index: 20;
+  backdrop-filter: blur(8px);
+  font-family: "JetBrains Mono", monospace;
+}
+
+.past-runs-panel::-webkit-scrollbar {
+  width: 4px;
+}
+
+.past-runs-panel::-webkit-scrollbar-track {
+  background: rgba(72, 180, 120, 0.05);
+}
+
+.past-runs-panel::-webkit-scrollbar-thumb {
+  background: rgba(72, 180, 120, 0.3);
+  border-radius: 2px;
+}
+
+.time-bar {
+  width: 64px;
+  height: 4px;
+  background: rgba(200, 232, 208, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.time-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #f6c846, #48b478, #f6c846);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.arrow-btn {
+  background: rgba(8, 15, 28, 0.8);
+  border: 1px solid rgba(72, 180, 120, 0.3);
+  color: rgba(200, 232, 208, 0.7);
+  font-size: 11px;
+  width: 26px;
+  height: 26px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.12s ease;
+  line-height: 1;
+  padding: 0;
+}
+
+.arrow-btn:hover {
+  background: rgba(72, 180, 120, 0.2);
+  border-color: rgba(72, 180, 120, 0.6);
+  color: var(--hud-accent);
+}
