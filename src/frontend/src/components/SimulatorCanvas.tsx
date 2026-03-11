@@ -76,6 +76,16 @@ export interface SimState {
   peakMammals: number;
   peakPredators: number;
   totalLandTiles: number;
+  season: "spring" | "summer" | "autumn" | "winter";
+  history: Array<{
+    day: number;
+    plants: number;
+    insects: number;
+    birds: number;
+    mammals: number;
+    predators: number;
+  }>;
+  lastRecordedDay: number;
 }
 
 function countVegetation(tiles: IslandTile[]) {
@@ -132,6 +142,9 @@ function initSimState(seed: number): SimState {
     peakMammals: 0,
     peakPredators: 0,
     totalLandTiles,
+    season: "spring",
+    history: [],
+    lastRecordedDay: 0,
   };
 }
 
@@ -160,7 +173,12 @@ function simulationTick(state: SimState): void {
     const y = Math.floor(i / GRID_W);
 
     if (tile.growthTimer > 0) {
-      tile.growthTimer--;
+      // Winter slows growth by 10%
+      if (state.season === "winter" && rng() < 0.1) {
+        // skip decrement
+      } else {
+        tile.growthTimer--;
+      }
     }
 
     if (tile.growthTimer === 0) {
@@ -274,6 +292,27 @@ function simulationTick(state: SimState): void {
   if (counts.mammals > state.peakMammals) state.peakMammals = counts.mammals;
   if (counts.predators > state.peakPredators)
     state.peakPredators = counts.predators;
+
+  // Compute season
+  const dayInYear = ((state.day - 1) % 360) + 1;
+  if (dayInYear <= 90) state.season = "spring";
+  else if (dayInYear <= 180) state.season = "summer";
+  else if (dayInYear <= 270) state.season = "autumn";
+  else state.season = "winter";
+
+  // Record population history once per day
+  if (state.day !== state.lastRecordedDay) {
+    state.lastRecordedDay = state.day;
+    state.history.push({
+      day: state.day,
+      plants: vegCount,
+      insects: counts.insects,
+      birds: counts.birds,
+      mammals: counts.mammals,
+      predators: counts.predators,
+    });
+    if (state.history.length > 300) state.history.shift();
+  }
 
   if (grassPct > 0.05 && counts.insects < ANIMAL_CAPS.insect && rng() < 0.04) {
     spawnAnimal(state, "insect", tiles, rng);
@@ -1474,7 +1513,7 @@ function renderFrame(
   camX: number,
   camY: number,
 ): void {
-  const { tiles, animals, tickInDay, weather } = state;
+  const { tiles, animals, tickInDay, weather, season } = state;
 
   // Clear viewport
   ctx.fillStyle = "#0a1020";
@@ -1626,6 +1665,21 @@ function renderFrame(
       ctx.stroke();
     }
   }
+
+  // Season tint overlay
+  if (season === "spring") {
+    ctx.fillStyle = "rgba(100,200,80,0.04)";
+    ctx.fillRect(0, 0, VIEWPORT_W, VIEWPORT_H);
+  } else if (season === "summer") {
+    ctx.fillStyle = "rgba(255,240,100,0.06)";
+    ctx.fillRect(0, 0, VIEWPORT_W, VIEWPORT_H);
+  } else if (season === "autumn") {
+    ctx.fillStyle = "rgba(220,120,30,0.12)";
+    ctx.fillRect(0, 0, VIEWPORT_W, VIEWPORT_H);
+  } else if (season === "winter") {
+    ctx.fillStyle = "rgba(160,180,230,0.14)";
+    ctx.fillRect(0, 0, VIEWPORT_W, VIEWPORT_H);
+  }
 }
 
 // ─── Minimap ──────────────────────────────────────────────────────────────────
@@ -1667,6 +1721,7 @@ interface HudCounts {
   predators: number;
   weather: "sunny" | "rainy";
   dayProgress: number;
+  season: "spring" | "summer" | "autumn" | "winter";
 }
 
 interface Props {
@@ -1713,9 +1768,12 @@ export function SimulatorCanvas({ onSaveRecord }: Props) {
     predators: 0,
     weather: "sunny",
     dayProgress: 0,
+    season: "spring",
   });
   const [pastRunsOpen, setPastRunsOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [chartOpen, setChartOpen] = useState(false);
+  const [legendOpen, setLegendOpen] = useState(false);
   const hudUpdateCounterRef = useRef(0);
 
   // Init rain drops
@@ -1809,6 +1867,7 @@ export function SimulatorCanvas({ onSaveRecord }: Props) {
           predators: ac.predators,
           weather: state.weather,
           dayProgress: state.tickInDay / TICKS_PER_DAY,
+          season: state.season,
         });
       }
 
@@ -1979,9 +2038,32 @@ export function SimulatorCanvas({ onSaveRecord }: Props) {
               Dia {hudCounts.day}
             </div>
           </div>
-          <div style={{ marginLeft: "auto" }}>
+          <div
+            style={{
+              marginLeft: "auto",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 2,
+            }}
+          >
             <span style={{ fontSize: 16 }}>
               {hudCounts.weather === "rainy" ? "🌧" : "🌤"}
+            </span>
+            <span
+              style={{
+                fontSize: 10,
+                color: "rgba(200,232,208,0.6)",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {hudCounts.season === "spring"
+                ? "🌸 Primavera"
+                : hudCounts.season === "summer"
+                  ? "☀️ Verão"
+                  : hudCounts.season === "autumn"
+                    ? "🍂 Outono"
+                    : "❄️ Inverno"}
             </span>
           </div>
         </div>
@@ -2143,15 +2225,25 @@ export function SimulatorCanvas({ onSaveRecord }: Props) {
         </div>
       </div>
 
-      {/* Bottom-right: Past Runs */}
+      {/* Bottom-right: Past Runs + Chart */}
       <div
         style={{
           position: "absolute",
           bottom: 12,
           right: 12,
           zIndex: 10,
+          display: "flex",
+          gap: 6,
         }}
       >
+        <button
+          type="button"
+          className="action-btn"
+          onClick={() => setChartOpen((v) => !v)}
+          data-ocid="controls.chart.button"
+        >
+          📈 Gráfico
+        </button>
         <button
           type="button"
           className="action-btn"
@@ -2159,6 +2251,25 @@ export function SimulatorCanvas({ onSaveRecord }: Props) {
           data-ocid="controls.past_runs.button"
         >
           📜 Histórico
+        </button>
+      </div>
+
+      {/* Bottom-left: Legend toggle */}
+      <div
+        style={{
+          position: "absolute",
+          bottom: 12,
+          left: 12,
+          zIndex: 10,
+        }}
+      >
+        <button
+          type="button"
+          className="action-btn"
+          onClick={() => setLegendOpen((v) => !v)}
+          data-ocid="controls.legend.button"
+        >
+          🗺 Legenda
         </button>
       </div>
 
@@ -2202,6 +2313,17 @@ export function SimulatorCanvas({ onSaveRecord }: Props) {
 
       {/* Past Runs Panel */}
       {pastRunsOpen && <PastRunsPanel onClose={() => setPastRunsOpen(false)} />}
+
+      {/* Population Chart Panel */}
+      {chartOpen && (
+        <PopulationChart
+          history={simStateRef.current.history}
+          onClose={() => setChartOpen(false)}
+        />
+      )}
+
+      {/* Legend Panel */}
+      {legendOpen && <LegendPanel onClose={() => setLegendOpen(false)} />}
     </div>
   );
 }
@@ -2402,6 +2524,292 @@ function RecordStat({
       >
         {value}
       </span>
+    </div>
+  );
+}
+
+// ─── Population Chart ─────────────────────────────────────────────────────────
+
+interface HistoryEntry {
+  day: number;
+  plants: number;
+  insects: number;
+  birds: number;
+  mammals: number;
+  predators: number;
+}
+
+function PopulationChart({
+  history,
+  onClose,
+}: {
+  history: HistoryEntry[];
+  onClose: () => void;
+}) {
+  const W = 300;
+  const H = 120;
+  const PAD = 4;
+  const chartW = W - PAD * 2;
+  const chartH = H - PAD * 2;
+
+  const lines: Array<{
+    key: keyof Omit<HistoryEntry, "day">;
+    color: string;
+    label: string;
+  }> = [
+    { key: "plants", color: "#4a9c2c", label: "Plantas" },
+    { key: "insects", color: "#f0c040", label: "Insetos" },
+    { key: "birds", color: "#60a0e0", label: "Pássaros" },
+    { key: "mammals", color: "#e08040", label: "Mamíferos" },
+    { key: "predators", color: "#e04040", label: "Predadores" },
+  ];
+
+  const maxVal = Math.max(
+    1,
+    ...history.flatMap((h) => [
+      h.plants,
+      h.insects,
+      h.birds,
+      h.mammals,
+      h.predators,
+    ]),
+  );
+
+  function buildPath(key: keyof Omit<HistoryEntry, "day">) {
+    if (history.length < 2) return "";
+    const pts = history.map((h, i) => {
+      const x = PAD + (i / (history.length - 1)) * chartW;
+      const y = PAD + chartH - (h[key] / maxVal) * chartH;
+      return `${x},${y}`;
+    });
+    return `M${pts.join("L")}`;
+  }
+
+  return (
+    <div
+      data-ocid="chart.panel"
+      style={{
+        position: "fixed",
+        bottom: 80,
+        right: 12,
+        zIndex: 20,
+        background: "rgba(6,14,28,0.92)",
+        border: "1px solid rgba(72,180,120,0.3)",
+        borderRadius: 6,
+        padding: "10px 12px",
+        minWidth: 330,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          marginBottom: 8,
+        }}
+      >
+        <span
+          style={{
+            color: "rgba(200,232,208,0.8)",
+            fontSize: 11,
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+          }}
+        >
+          📈 Histórico de População
+        </span>
+        <button
+          type="button"
+          onClick={onClose}
+          data-ocid="chart.close_button"
+          style={{
+            background: "none",
+            border: "none",
+            color: "rgba(200,232,208,0.5)",
+            cursor: "pointer",
+            fontSize: 14,
+            lineHeight: 1,
+            padding: "0 2px",
+          }}
+        >
+          ✕
+        </button>
+      </div>
+      {history.length < 2 ? (
+        <div
+          data-ocid="chart.empty_state"
+          style={{
+            color: "rgba(200,232,208,0.4)",
+            fontSize: 11,
+            padding: "20px 0",
+            textAlign: "center",
+          }}
+        >
+          Aguardando dados...
+        </div>
+      ) : (
+        <svg
+          width={W}
+          height={H}
+          role="img"
+          aria-label="Gráfico de população"
+          style={{ display: "block" }}
+        >
+          {/* Grid lines */}
+          {[0.25, 0.5, 0.75, 1].map((v) => (
+            <line
+              key={v}
+              x1={PAD}
+              y1={PAD + chartH * (1 - v)}
+              x2={PAD + chartW}
+              y2={PAD + chartH * (1 - v)}
+              stroke="rgba(200,232,208,0.08)"
+              strokeWidth={1}
+            />
+          ))}
+          {/* Species lines */}
+          {lines.map((l) => (
+            <path
+              key={l.key}
+              d={buildPath(l.key)}
+              fill="none"
+              stroke={l.color}
+              strokeWidth={1.5}
+              strokeLinejoin="round"
+            />
+          ))}
+        </svg>
+      )}
+      {/* Legend */}
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "4px 12px",
+          marginTop: 6,
+        }}
+      >
+        {lines.map((l) => (
+          <div
+            key={l.key}
+            style={{ display: "flex", alignItems: "center", gap: 4 }}
+          >
+            <div
+              style={{
+                width: 10,
+                height: 2,
+                background: l.color,
+                borderRadius: 1,
+              }}
+            />
+            <span
+              style={{
+                color: "rgba(200,232,208,0.55)",
+                fontSize: 9,
+                textTransform: "uppercase",
+              }}
+            >
+              {l.label}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Legend Panel ─────────────────────────────────────────────────────────────
+
+const TILE_LEGEND: Array<{ label: string; color: string }> = [
+  { label: "Água Profunda", color: "#0d2440" },
+  { label: "Água Rasa", color: "#1a6088" },
+  { label: "Coral", color: "#ff8050" },
+  { label: "Areia", color: "#d4b060" },
+  { label: "Solo", color: "#6a3e12" },
+  { label: "Solo Fértil", color: "#3d2208" },
+  { label: "Grama", color: "#3a8820" },
+  { label: "Arbusto", color: "#2e7018" },
+  { label: "Árvore", color: "#1a5010" },
+  { label: "Floresta", color: "#0e3808" },
+  { label: "Floresta Densa", color: "#082808" },
+  { label: "Rocha", color: "#706060" },
+  { label: "Penhasco", color: "#504848" },
+  { label: "Pântano", color: "#1a3820" },
+  { label: "Semente", color: "#c0a060" },
+  { label: "Broto", color: "#70b840" },
+];
+
+function LegendPanel({ onClose }: { onClose: () => void }) {
+  return (
+    <div
+      data-ocid="legend.panel"
+      style={{
+        position: "fixed",
+        bottom: 80,
+        left: 12,
+        zIndex: 20,
+        background: "rgba(6,14,28,0.92)",
+        border: "1px solid rgba(72,180,120,0.3)",
+        borderRadius: 6,
+        padding: "10px 12px",
+        minWidth: 180,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          marginBottom: 8,
+        }}
+      >
+        <span
+          style={{
+            color: "rgba(200,232,208,0.8)",
+            fontSize: 11,
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+          }}
+        >
+          🗺 Legenda
+        </span>
+        <button
+          type="button"
+          onClick={onClose}
+          data-ocid="legend.close_button"
+          style={{
+            background: "none",
+            border: "none",
+            color: "rgba(200,232,208,0.5)",
+            cursor: "pointer",
+            fontSize: 14,
+            lineHeight: 1,
+            padding: "0 2px",
+          }}
+        >
+          ✕
+        </button>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        {TILE_LEGEND.map((item) => (
+          <div
+            key={item.label}
+            style={{ display: "flex", alignItems: "center", gap: 8 }}
+          >
+            <div
+              style={{
+                width: 14,
+                height: 14,
+                background: item.color,
+                borderRadius: 2,
+                border: "1px solid rgba(255,255,255,0.1)",
+                flexShrink: 0,
+              }}
+            />
+            <span style={{ color: "rgba(200,232,208,0.75)", fontSize: 10 }}>
+              {item.label}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
